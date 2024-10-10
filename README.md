@@ -29,3 +29,10 @@ This repository contains a simple web application built with **Streamlit** that 
    ```bash
    git clone https://github.com/yourusername/sentiment-analysis-app.git
    cd sentiment-analysis-app
+
+   ## Running the Application
+
+2.To start the Streamlit app, run the following command in your terminal:
+
+```bash
+streamlit run sentiment_analysis_app.py
