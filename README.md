@@ -12,10 +12,9 @@ Sentiment anaylsis using the transformer pipeline ("sentiment-analysis")
 ## Technologies Used
 
 - Python
-- Streamlit
-- NLTK
-- VADER Lexicon
-
+- transformers
+- fast api
+- html and js based frontend 
 ## Getting Started
 
 ### Prerequisites
@@ -32,7 +31,4 @@ Sentiment anaylsis using the transformer pipeline ("sentiment-analysis")
 
    ## Running the Application
 
-2.To start the Streamlit app, run the following command in your terminal:
 
-```bash
-streamlit run sentiment_analysis_app.py
