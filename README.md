@@ -1,6 +1,6 @@
 # Sentiment Analysis Web App
 
-This repository contains a simple web application built with **Streamlit** that performs sentiment analysis on user-provided text using the **VADER** (Valence Aware Dictionary and sEntiment Reasoner) sentiment analysis tool from **NLTK** (Natural Language Toolkit). The application allows users to input text and receive sentiment scores, including positive, negative, neutral, and compound scores.
+Sentiment anaylsis using the transformer pipeline ("sentiment-analysis")
 
 ## Features
 
