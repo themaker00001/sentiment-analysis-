@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sentiment Analysis Feedback Loop</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom styles */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7fafc;
+        }
+        .sentiment-card {
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            transition: transform 0.3s ease;
+        }
+        .sentiment-card:hover {
+            transform: translateY(-2px);
+        }
+        .btn-primary {
+            transition: background-color 0.2s, transform 0.1s;
+        }
+        .btn-primary:hover {
+            background-color: #3b82f6;
+            transform: translateY(-1px);
+        }
+    </style>
+</head>
+<body class="p-4 sm:p-8 min-h-screen">
+
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-4xl font-extrabold text-gray-800 mb-8 text-center">
+            Sentiment Analyzer & Feedback Tool
+        </h1>
+
+        <!-- Prediction Input Card -->
+        <div id="prediction-section" class="sentiment-card bg-white p-6 md:p-10 rounded-xl mb-8 border border-blue-100">
+            <h2 class="text-2xl font-bold text-gray-700 mb-4">Analyze Sentiment</h2>
+            
+            <textarea id="review-input" rows="4" 
+                      class="w-full p-4 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-gray-700 resize-none" 
+                      placeholder="Enter the text you want to analyze (e.g., 'This product is fantastic, I love it!')."></textarea>
+            
+            <button id="predict-button" 
+                    class="btn-primary w-full mt-4 py-3 bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-300 disabled:opacity-50">
+                Get Sentiment Prediction
+            </button>
+        </div>
+
+        <!-- Prediction Result & Feedback -->
+        <div id="result-feedback-container" class="hidden">
+            <!-- Result Display -->
+            <div id="prediction-result" class="sentiment-card p-6 rounded-xl mb-8 bg-blue-50 border border-blue-200">
+                <h3 class="text-xl font-semibold text-blue-800 mb-3">Model Prediction:</h3>
+                <p class="text-lg text-gray-700">
+                    Label: <span id="result-label" class="font-bold text-blue-900"></span> 
+                    (<span id="result-score" class="text-sm font-medium"></span>)
+                </p>
+                <div id="prediction-text" class="mt-4 p-3 bg-blue-100 rounded-md text-gray-600 italic"></div>
+            </div>
+
+            <!-- Feedback Form -->
+            <div id="feedback-form" class="sentiment-card p-6 rounded-xl mb-8 bg-yellow-50 border border-yellow-200">
+                <h3 class="text-xl font-semibold text-yellow-800 mb-3">Help Improve the Model (Feedback)</h3>
+                <p class="text-gray-700 mb-4">Was the prediction correct? Select the true sentiment label:</p>
+                
+                <div class="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4">
+                    <button data-label="POSITIVE" class="feedback-btn flex-1 py-3 bg-green-500 text-white font-semibold rounded-lg shadow-md hover:bg-green-600 transition">
+                        ✅ POSITIVE
+                    </button>
+                    <button data-label="NEGATIVE" class="feedback-btn flex-1 py-3 bg-red-500 text-white font-semibold rounded-lg shadow-md hover:bg-red-600 transition">
+                        ❌ NEGATIVE
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Feedback Status & All Feedback List -->
+        <div class="sentiment-card bg-gray-50 p-6 rounded-xl border border-gray-200">
+            <h2 class="text-2xl font-bold text-gray-700 mb-4 cursor-pointer flex justify-between items-center" id="toggle-feedback">
+                <span>Recorded Feedback (<span id="feedback-count">0</span>)</span>
+                <span id="toggle-icon" class="text-gray-500 transition-transform duration-300">▼</span>
+            </h2>
+            
+            <!-- Message Box for Alerts -->
+            <div id="message-box" class="hidden p-3 rounded-lg text-sm mb-4" role="alert"></div>
+
+            <div id="feedback-list-container" class="hidden mt-4">
+                <div id="feedback-loader" class="text-center text-gray-500 hidden">Loading feedback...</div>
+                <div id="feedback-list" class="space-y-3 max-h-96 overflow-y-auto">
+                    <!-- Feedback items will be inserted here -->
+                </div>
+                <button id="refresh-feedback-button" 
+                        class="w-full mt-4 py-2 bg-gray-200 text-gray-700 font-medium rounded-lg hover:bg-gray-300 transition">
+                    Refresh List
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+  const BASE_URL = "http://127.0.0.1:8000";
+
+  // Elements
+  const reviewInput = document.getElementById("review-input");
+  const predictButton = document.getElementById("predict-button");
+  const resultContainer = document.getElementById("result-feedback-container");
+  const resultLabel = document.getElementById("result-label");
+  const resultScore = document.getElementById("result-score");
+  const predictionTextDisplay = document.getElementById("prediction-text");
+  const feedbackButtons = document.querySelectorAll(".feedback-btn");
+  const feedbackCountSpan = document.getElementById("feedback-count");
+  const feedbackListContainer = document.getElementById("feedback-list-container");
+  const feedbackList = document.getElementById("feedback-list");
+  const toggleFeedback = document.getElementById("toggle-feedback");
+  const toggleIcon = document.getElementById("toggle-icon");
+  const refreshFeedbackButton = document.getElementById("refresh-feedback-button");
+
+  let lastPredictedText = "";
+  let isFeedbackListVisible = false;
+
+  // --- Predict ---
+  async function handlePrediction() {
+    const text = reviewInput.value.trim();
+    if (!text) {
+      alert("Please enter some text!");
+      return;
+    }
+
+    predictButton.disabled = true;
+    predictButton.textContent = "Analyzing...";
+
+    try {
+      const res = await fetch(`${BASE_URL}/predict`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+      const data = await res.json();
+
+      // Update UI
+      resultLabel.textContent = data.label;
+      resultScore.textContent = `Score: ${parseFloat(data.score).toFixed(4)}`;
+      predictionTextDisplay.textContent = text;
+
+      resultLabel.className = "font-bold";
+      if (data.label === "POSITIVE") resultLabel.classList.add("text-green-600");
+      else if (data.label === "NEGATIVE") resultLabel.classList.add("text-red-600");
+      else resultLabel.classList.add("text-gray-600");
+
+      lastPredictedText = text;
+      resultContainer.classList.remove("hidden");
+    } catch (err) {
+      alert("Prediction failed: " + err.message);
+    } finally {
+      predictButton.disabled = false;
+      predictButton.textContent = "Get Sentiment Prediction";
+    }
+  }
+
+  // --- Feedback ---
+  async function handleFeedback(userLabel) {
+    if (!lastPredictedText) {
+      alert("Run a prediction first!");
+      return;
+    }
+
+    try {
+      await fetch(`${BASE_URL}/feedback`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: lastPredictedText, user_label: userLabel }),
+      });
+      await fetchFeedback();
+    } catch (err) {
+      alert("Feedback failed: " + err.message);
+    }
+  }
+
+  // --- Fetch Feedback ---
+  async function fetchFeedback() {
+    try {
+      const res = await fetch(`${BASE_URL}/get_feedback`);
+      const data = await res.json();
+      const feedbackStore = data.feedback_store || [];
+
+      feedbackCountSpan.textContent = feedbackStore.length;
+      feedbackList.innerHTML = "";
+
+      if (feedbackStore.length === 0) {
+        feedbackList.innerHTML = "<p class='text-gray-500 italic'>No feedback yet.</p>";
+        return;
+      }
+
+      feedbackStore.reverse().forEach(item => {
+        const div = document.createElement("div");
+        div.className = "p-3 bg-white rounded-lg border";
+        const labelClass = item.user_label === "POSITIVE" ? "text-green-600" : "text-red-600";
+        div.innerHTML = `<p class="font-semibold ${labelClass}">${item.user_label}</p>
+                         <p class="text-xs text-gray-500 italic">${item.text}</p>`;
+        feedbackList.appendChild(div);
+      });
+    } catch (err) {
+      feedbackList.innerHTML = `<p class="text-red-500">Error: ${err.message}</p>`;
+    }
+  }
+
+  // --- Events ---
+  predictButton.addEventListener("click", handlePrediction);
+  feedbackButtons.forEach(btn =>
+    btn.addEventListener("click", () => handleFeedback(btn.dataset.label))
+  );
+  toggleFeedback.addEventListener("click", () => {
+    isFeedbackListVisible = !isFeedbackListVisible;
+    feedbackListContainer.classList.toggle("hidden", !isFeedbackListVisible);
+    toggleIcon.classList.toggle("rotate-180", isFeedbackListVisible);
+    if (isFeedbackListVisible) fetchFeedback();
+  });
+  refreshFeedbackButton.addEventListener("click", fetchFeedback);
+
+  // Initial feedback load
+  fetchFeedback();
+</script>
